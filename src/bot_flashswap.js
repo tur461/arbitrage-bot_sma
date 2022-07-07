@@ -3,7 +3,7 @@ require('colors')//for console output
 const Web3 = require('web3');
 const { CHAIN, ABI, ADDRESS } = require('./constants');
 const { switchChain, getContract } = require('./mweb3');
-const { isAddr, exit } = require('./utils');
+const { isAddr, exit, computeProfitMaximizingTrade } = require('./utils');
 
 const isLocal = process.env.IS_LOCAL;
 
@@ -15,7 +15,6 @@ const validPeriod = process.env.VALID_PERIOD
 
 let web3, myAccount;
 
-let utils;
 let token0, token1;
 let uRouter, sRouter; 
 let uFactory, sFactory; 
@@ -49,7 +48,6 @@ async function initVars() {
 
     token0 = getContract([ABI.I_ERC20, tkn0Addr]);
     token1 = getContract([ABI.I_ERC20, tkn1Addr]);
-    utils = getContract([ABI.UTILS,  ADDRESS.UTILS]);
     uRouter = getContract([ABI.I_ROUTER, ADDRESS.UNI_ROUTER]);
     sRouter = getContract([ABI.I_ROUTER, ADDRESS.SUSHI_ROUTER]);
     uFactory = getContract([ABI.I_FACTORY, ADDRESS.UNI_FACTORY]);
@@ -133,12 +131,12 @@ async function onDataHandler(blockHeader) {
 
         //compute amount that must be traded to maximize the profit and, trade direction; function provided by uniswap
         // first 2 are of A, second 2 are of B
-        const result = await utils.methods.computeProfitMaximizingTrade(
+        const result = computeProfitMaximizingTrade(
             sReserve0,
-            sReserve1, 
+            sReserve1,
             uReserve0,
             uReserve1,
-        ).call()
+        )
         console.log('computed:', result);
 
         const aToB = result[0] //trade direction

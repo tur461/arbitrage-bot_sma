@@ -1,7 +1,7 @@
 require('dotenv').config();
 
 const { exit } = require('./utils');
-const Utils = require('../build/contracts/Utils.json');
+// const Utils = require('../build/contracts/Utils.json');
 const Arbitrager = require('../build/contracts/Arbitrager.json');
 const IRouter = require('@uniswap/v2-periphery/build/IUniswapV2Router02.json')
 const ERC20PresetMinterPauser = require('@openzeppelin/contracts/build/contracts/ERC20PresetMinterPauser.json');
@@ -20,9 +20,9 @@ const tokenContractParams = [
     {data:ERC20PresetMinterPauser.bytecode}
 ];
 
+let arbitrager;
 let web3, myAccount; 
 let uRouter, sRouter; 
-let utils, arbitrager;
 let token0, token1;
 
 function initVars() {
@@ -36,11 +36,11 @@ function initVars() {
         '',
         {data:Arbitrager.bytecode}
     ]);
-    utils = getContract([
-        Utils.abi,
-        '',
-        {data:Utils.bytecode}
-    ]);
+    // utils = getContract([
+    //     Utils.abi,
+    //     '',
+    //     {data:Utils.bytecode}
+    // ]);
 }
 
 async function addLiquidity(a0, a1, a2, a3) {
@@ -56,7 +56,7 @@ async function deployOnEthereum() {
     
     let gasLimit, receipt, aux, mintAmount;
     if(DEPLOYED == 1) {
-        utils.options.address = ADDRESS.UTILS;
+        // utils.options.address = ADDRESS.UTILS;
         token0.options.address = ADDRESS.TOKEN0;
         token1.options.address = ADDRESS.TOKEN1;
         arbitrager.options.address = ADDRESS.ARBTRG;
@@ -108,14 +108,14 @@ async function deployOnEthereum() {
         receipt = await arbitrager.deploy({arguments: [ADDRESS.SUSHI_FACTORY, ADDRESS.UNI_ROUTER]}).send({from: myAccount})
         arbitrager.options.address = receipt._address
         
-        gasLimit = await utils.deploy().estimateGas({from: myAccount})
-        receipt = await utils.deploy().send({from: myAccount})
-        utils.options.address = receipt._address
+        // gasLimit = await utils.deploy().estimateGas({from: myAccount})
+        // receipt = await utils.deploy().send({from: myAccount})
+        // utils.options.address = receipt._address
         
     }
     
-    console.log(`Arbitrager contract deployed at ${arbitrager.options.address}\n`)
-    console.log(`Utils contract deployed at ${utils.options.address}\n`)
+    console.log(`Arbitrager contract deployed at ${arbitrager.options.address}\n`);
+    // console.log(`Utils contract deployed at ${utils.options.address}\n`);
     
     return {token0Symbol, token1Symbol};
 }
