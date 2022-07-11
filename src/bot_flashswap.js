@@ -149,8 +149,8 @@ async function onDataHandler(blockHeader) {
 
             //amount of T1 received for swapping the precomputed amount of T0 on uniswap
             const amountOut = await uRouter.methods.getAmountOut(amountIn, uReserve0, uReserve1).call()
-            // console.log('amountIn:', amountIn/10**18);
-            // console.log('amountOut:', amountOut/10**18);
+            console.log('amountIn:', amountIn/10**18);
+            console.log('amountOut:', amountOut/10**18);
             //new reserves after trade
             const newUReserve0 = Number(uReserve0)+Number(amountIn)
             const newUReserve1 = Number(uReserve1)-Number(amountOut)
@@ -159,8 +159,8 @@ async function onDataHandler(blockHeader) {
             
             // console.log('sReserves:', sReserve0/10**18, sReserve1/10**18);
             //amount nedeed for repaying flashswap taken on sushiswap, used below
-            const sAmountIn = await sRouter.methods.getAmountIn(amountIn, sReserve1, sReserve0).call()
-            // console.log('flash loan repay amount on sushi:', sAmountIn);
+            const sAmountIn = await sRouter.methods.getAmountIn(amountOut, sReserve1, sReserve0).call()
+            console.log('flash loan repay amount on sushi:', sAmountIn);
             //sushiswap price
             const sPrice = 1/(sAmountIn/amountIn)//trade price
             // console.log('sushi price:', sPrice);
@@ -213,13 +213,13 @@ async function onDataHandler(blockHeader) {
             
             if (profit<=0) return;
 
-            const abi = web3.eth.abi.encodeParameters(['uint256','uint256'], [sAmountIn,deadline])
+            const abi = web3.eth.abi.encodeParameters(['uint256', 'uint256'], [sAmountIn, deadline])
             
             const tx = { //transaction
                 from: myAccount, 
                 to: sPair.options.address, 
                 gas: gasNeeded, 
-                data: sPair.methods.swap(amountIn,0,addrArbitrager,abi).encodeABI()
+                data: sPair.methods.swap(amountIn, 0, ADDRESS.ARBTRG, abi).encodeABI()
             }
 
             signedTx = await web3.eth.accounts.signTransaction(tx, privateKey);
@@ -283,7 +283,7 @@ async function onDataHandler(blockHeader) {
                 from: myAccount, 
                 to: sPair.options.address, 
                 gas: gasNeeded, 
-                data: sPair.methods.swap(0,amountIn,addrArbitrager,abi).encodeABI()
+                data: sPair.methods.swap(0,amountIn, ADDRESS.ARBTRG,abi).encodeABI()
             }
             signedTx = await web3.eth.accounts.signTransaction(tx, privateKey);
             console.log('Tx pending')
