@@ -15,6 +15,8 @@ const ADDRESS = {
 const VAL = {
     TKN0_SYM: 'PNA',
     TKN1_SYM: 'WTM',
+    PRICE_TOKEN0: 190.2,
+    PRICE_TOKEN1: 235.7,
     TKN0_NAME: 'Pineapple',
     TKN1_NAME: 'Watermelon',
 }

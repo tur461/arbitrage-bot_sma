@@ -1,7 +1,7 @@
 require('dotenv').config()//for importing parameters
 require('colors')//for console output
 const Web3 = require('web3');
-const { CHAIN, ABI, ADDRESS } = require('./constants');
+const { CHAIN, ABI, ADDRESS, VAL } = require('./constants');
 const { switchChain, getContract } = require('./mweb3');
 const { isAddr, exit, computeProfitMaximizingTrade } = require('./utils');
 
@@ -59,6 +59,7 @@ async function initVars() {
     tkn1Sym = await token1.methods.symbol().call();
 
     addr = await uFactory.methods.getPair(ADDRESS.ETH, ADDRESS.DAI).call();
+    console.log('upair0 addr', addr);
     uPair0 = isAddr(addr) ? getContract([ABI.I_PAIR, addr]) : null;
     if(!uPair0) throw new Error('pair doesn\'t exist! eth-dai');
 
@@ -108,23 +109,31 @@ async function onDataHandler(blockHeader) {
         uReserves = await uPair0.methods.getReserves().call()
         uReserve0 = uReserves[0] //dai
         uReserve1 = uReserves[1] //eth
+        uReserve0 = '112' + '0'.repeat(18);
+        uReserve1 = '313' + '0'.repeat(18);
         priceEth = (uReserve0/uReserve1) //dai per eth
         // console.log('uPair0 uReserves:', uReserves);
             
         //token prices in eth, used bellow for determining if its possible to make a profit
-        const priceToken0Eth = priceToken0*1/priceEth 
-        const priceToken1Eth = priceToken1*1/priceEth 
+        const priceToken0Eth = VAL.PRICE_TOKEN0 * 1 / priceEth; 
+        const priceToken1Eth = VAL.PRICE_TOKEN1 * 1 / priceEth; 
+        console.log('price token 0  eth:', uReserves);
+        console.log('price token 1  eth:', priceToken1Eth);
 
         //tokens reserves on uniswap
         uReserves = await uPair1.methods.getReserves().call()
         uReserve0 = uReserves[0] //T0
         uReserve1 = uReserves[1] //T1
+        const uT0Price = uReserve1 / uReserve0;
+        const uT1Price = uReserve0 / uReserve1;
         // console.log('uPair1 uReserves:', uReserves, 'price:', uReserve0 / uReserve1);
 
         //tokens reserves on sushiswap
         sReserves = await sPair.methods.getReserves().call()
         sReserve0 = sReserves[0] //T0
         sReserve1 = sReserves[1] //T1
+        const sT0Price = sReserve1 / sReserve0;
+        const sT1Price = sReserve0 / sReserve1;
         // console.log('sPair sReserves:', sReserves, 'price:', sReserve0 / sReserve1);
         // const pa = sReserve0 / sReserve1;
         // const pb = aReserve1 / sReserve0;
@@ -137,53 +146,63 @@ async function onDataHandler(blockHeader) {
             uReserve0,
             uReserve1,
         )
+        // console.log('token 0:', token0.options.address);
+        // console.log('token 1:', token1.options.address);
         console.log('computed:', result);
 
         const aToB = result[0] //trade direction
         const amountIn = result[1]
 
         // aToB means buy on A sell on B, here A is sushi and B is uni
-        if (amountIn==0) {console.log(`No arbitrage opportunity on block ${blockHeader.number}\n`); return}
+        if (amountIn == 0) {
+            console.log(`No arbitrage opportunity on block ${blockHeader.number}\n`); 
+            return
+        }
         
         if (aToB) { //T0->T1
-
             //amount of T1 received for swapping the precomputed amount of T0 on uniswap
-            const amountOut = await uRouter.methods.getAmountOut(amountIn, uReserve0, uReserve1).call()
+            const uAmountOut = await uRouter.methods.getAmountOut(amountIn, uReserve0, uReserve1).call()
             console.log('amountIn:', amountIn/10**18);
-            console.log('amountOut:', amountOut/10**18);
+            console.log('amountOut:', uAmountOut/10**18);
             //new reserves after trade
-            const newUReserve0 = Number(uReserve0)+Number(amountIn)
-            const newUReserve1 = Number(uReserve1)-Number(amountOut)
+            const newUReserve0 = Number(uReserve0) + Number(amountIn)
+            const newUReserve1 = Number(uReserve1) - Number(uAmountOut)
             // console.log('After Trade Reserves:\n uReserve0:', newUReserve0/10**18);
             // console.log('uReserve1:', newUReserve1/10**18);
             
             // console.log('sReserves:', sReserve0/10**18, sReserve1/10**18);
             //amount nedeed for repaying flashswap taken on sushiswap, used below
-            const sAmountIn = await sRouter.methods.getAmountIn(amountOut, sReserve1, sReserve0).call()
-            console.log('flash loan repay amount on sushi:', sAmountIn);
+            let x = uAmountOut * sT1Price;
+            x = x > sReserve1 ? sReserve1 : x;
+            const sAmountIn = await sRouter.methods.getAmountIn(x, sReserve1, sReserve0).call()
+            console.log('flash loan repay amount on sushi:', sAmountIn / 10**18);
             //sushiswap price
-            const sPrice = 1/(sAmountIn/amountIn)//trade price
+            const sPrice = sT0Price //trade price
             // console.log('sushi price:', sPrice);
             //difference per T0 traded
-            const difference =  amountOut/amountIn - 1/sPrice
+            const difference =  x / amountIn - 1/sPrice
+            console.log('sprice:', sPrice, 'diff:', difference);
             // console.log('difference:', difference);
-            if (difference<=0) {console.log(`No arbitrage opportunity on block ${blockHeader.number}\n`); return}
+            if (difference<=0) {
+                console.log(`No arbitrage opportunity on block ${blockHeader.number}\n`); 
+                return
+            }
 
             //total difference (difference*quantity traded)
-            const totalDifference = difference*Math.round(amountIn/10**18)
+            const totalDifference = difference * Math.round(amountIn / 10**18)
             // console.log('total difference:', totalDifference);
             //time during the swap can be executed, after that it will be refused by uniswap
-            const deadline = Math.round(Date.now()/1000)+validPeriod*60 
+            const deadline = Math.round(Date.now() / 1000) + validPeriod * 60 
             
             //gas
-            const gasNeeded = (0.3*10**6)*2 //previosly measured (line below), take to much time, overestimate 2x
+            const gasNeeded = (0.3 * 10**6) * 2 //previosly measured (line below), take to much time, overestimate 2x
             //const gasNeeded = await sPair.methods.swap(amountIn,0,addrArbitrager,abi).estimateGas()
             // console.log('gas needed:', gasNeeded);
             const gasPrice = await web3.eth.getGasPrice()
-            const gasCost = Number(gasPrice)*gasNeeded/10**18
+            const gasCost = Number(gasPrice) * gasNeeded / 10**18
             // console.log('gas price:', gasPrice, 'gas cost:', gasCost);
             //profitable?
-            const profit = (totalDifference*priceToken1Eth)-gasCost
+            const profit = (totalDifference * priceToken1Eth) - gasCost
             // console.log('profit:', profit);
             console.log(
                 `Block ${blockHeader.number}`.bgBlue+`\n\n`+
@@ -238,8 +257,8 @@ async function onDataHandler(blockHeader) {
             const newUReverve0 = Number(uReserve0)-Number(amountOut)
             const newUReverve1 = Number(uReserve1)+Number(amountIn)
             const sAmountIn = await sRouter.methods.getAmountIn(amountIn,sReserve0 ,sReserve1).call()
-            const sPrice = sAmountIn/amountIn
-            const difference = amountOut/amountIn - sPrice
+            const sPrice = sAmountIn / amountIn
+            const difference = amountOut / amountIn - sPrice
 
             if (difference<=0) {console.log(`No arbitrage opportunity on block ${blockHeader.number}\n`); return}
 

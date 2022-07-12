@@ -81,6 +81,8 @@ async function deployOnEthereum() {
     const token0Symbol = await token0.methods.symbol().call()
     const token1Name = await token1.methods.name().call()
     const token1Symbol = await token1.methods.symbol().call()
+    console.log('token 0:', token0Symbol, token0.options.address);
+    console.log('token 1:', token1Symbol, token1.options.address);
     console.log(
         `\n${token0Name} (${token0Symbol}) {token0}\n`+
         `Deployed at ${token0.options.address}\n\n`+
